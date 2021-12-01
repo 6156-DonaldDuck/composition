@@ -1,0 +1,4 @@
+port: 8086
+baseurl: /api/v1
+user_endpoint: http://ec2-52-14-16-222.us-east-2.compute.amazonaws.com:8080
+address_endpoint: http://ec2-52-14-16-222.us-east-2.compute.amazonaws.com:8085
