@@ -7,6 +7,7 @@ require github.com/gin-gonic/gin v1.7.7
 require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.3 // indirect
+	github.com/sirupsen/logrus v1.8.1 // indirect
 )
 
 require (
