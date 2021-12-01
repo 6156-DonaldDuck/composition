@@ -1,17 +1,20 @@
 package router
 
 import (
+	"errors"
+	"net/http"
+	"strconv"
+	"github.com/6156-DonaldDuck/composition/pkg/config"
+	"github.com/6156-DonaldDuck/composition/pkg/service"
+	"github.com/6156-DonaldDuck/composition/pkg/model"
+	"github.com/6156-DonaldDuck/composition/pkg/router/middleware"
+	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/6156-DonaldDuck/compositions/pkg/config"
-	"github.com/6156-DonaldDuck/compositions/pkg/model"
-	"github.com/6156-DonaldDuck/compositions/pkg/router/middleware"
-	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	"net/http"
-	"strconv"
 )
 
 func InitRouter() {
@@ -19,9 +22,30 @@ func InitRouter() {
 	r.Use(middleware.CORSMiddleware())
 
 	r.GET("/api/v1/compositions/:userId", SyncGetUserAddressById)
+	r.GET("/api/v1/user_address/:id", GetUserAddressById)
 	r.POST("/api/v1/compositions", AsyncPostUserAddressInfo)
 
 	r.Run(":" + config.Configuration.Port)
+}
+
+func GetUserAddressById(c *gin.Context) {
+	idStr := c.Param("id")
+	userId, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Errorf("[router.GetUserAddressById] failed to parse user id %v, err=%v\n", idStr, err)
+		c.JSON(http.StatusBadRequest, "invalid user id")
+		return
+	}
+	user_address, err := service.GetUserAddressById(uint(userId))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, err.Error())
+		} else {
+			c.Error(err)
+		}
+	} else {
+		c.JSON(http.StatusOK, user_address)
+	}
 }
 
 func SyncGetUserAddressById(c *gin.Context) {

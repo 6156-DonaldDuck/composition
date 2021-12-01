@@ -1,4 +1,4 @@
-module github.com/6156-DonaldDuck/compositions
+module github.com/6156-DonaldDuck/composition
 
 go 1.17
 
