@@ -1,13 +1,15 @@
 package service
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"github.com/6156-DonaldDuck/composition/pkg/config"
 	"github.com/6156-DonaldDuck/composition/pkg/model"
 	log "github.com/sirupsen/logrus"
-	"sync"
-	"fmt"
-	"net/http"
 	"io/ioutil"
-	"encoding/json"
+	"net/http"
+	"sync"
 )
 
 func GetUserAddressById(userId uint) (model.UserAddress, error) {
@@ -63,4 +65,66 @@ func GetUserAddressById(userId uint) (model.UserAddress, error) {
 	}
 
 	return useraddress, nil
+}
+
+func GetUserById(userId string) (model.User, error) {
+	user := model.User{}
+	userUrl := config.Configuration.UserEndpoint+config.Configuration.BaseURL+"/users/"+userId
+	resp, err := http.Get(userUrl)
+	if err != nil {
+		log.Errorf("[service.GetUserById] error occurred while getting user with id %v, err=%v\n", userId, err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(body, &user)
+	if err != nil {
+		log.Errorf("[service.GetUserById] error occurred while getting user with id %v, err=%v\n", userId, err)
+	}
+
+	return user, nil
+}
+
+func GetAddressByUserId(userId string) (model.Address, error) {
+	address := model.Address{}
+	addressUrl := config.Configuration.AddressEndpoint+config.Configuration.BaseURL+"/users/"+userId +"/address"
+	resp, err := http.Get(addressUrl)
+	if err != nil {
+		log.Errorf("[service.GetAddressByUserId] error occurred while getting user with id %v, err=%v\n", userId, err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(body, &address)
+	if err != nil {
+		log.Errorf("[service.GetAddressByUserId] error occurred while getting user with id %v, err=%v\n", userId, err)
+	}
+	return address, nil
+}
+
+func CreateUser(user model.User) (string, error) {
+	body, _ := json.Marshal(user)
+	userUrl := config.Configuration.UserEndpoint+config.Configuration.BaseURL+"/users"
+	resp, err := http.Post(userUrl, "application/json", bytes.NewReader(body))
+	if err != nil {
+		log.Errorf("[service.CreateUser] error occurred while getting user with err=%v\n", err)
+	}
+	bytes, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(bytes)
+	userId := string(bytes)
+
+	return userId, nil
+}
+
+func CreateAddress(address model.Address) (string, error) {
+	body, _ := json.Marshal(address)
+	addressUrl := config.Configuration.AddressEndpoint+config.Configuration.BaseURL+"/addresses"
+	resp, err := http.Post(addressUrl, "application/json", bytes.NewReader(body))
+	if err != nil {
+		log.Errorf("[service.CreateUser] error occurred while getting user with err=%v\n", err)
+	}
+	bytes, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(bytes)
+	addressId := string(bytes)
+	fmt.Println(addressId)
+
+	return addressId, nil
 }

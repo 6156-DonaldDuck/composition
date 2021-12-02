@@ -2,19 +2,15 @@ package router
 
 import (
 	"errors"
-	"net/http"
-	"strconv"
 	"github.com/6156-DonaldDuck/composition/pkg/config"
-	"github.com/6156-DonaldDuck/composition/pkg/service"
 	"github.com/6156-DonaldDuck/composition/pkg/model"
 	"github.com/6156-DonaldDuck/composition/pkg/router/middleware"
+	"github.com/6156-DonaldDuck/composition/pkg/service"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
+	"net/http"
+	"strconv"
 )
 
 func InitRouter() {
@@ -23,7 +19,7 @@ func InitRouter() {
 
 	r.GET("/api/v1/compositions/:userId", SyncGetUserAddressById)
 	r.GET("/api/v1/user_address/:id", GetUserAddressById)
-	r.POST("/api/v1/compositions", AsyncPostUserAddressInfo)
+	r.POST("/api/v1/compositions", SyncPostUserAddressInfo)
 
 	r.Run(":" + config.Configuration.Port)
 }
@@ -60,90 +56,56 @@ func SyncGetUserAddressById(c *gin.Context) {
 	}
 
 	// get user info
-	userUrl := config.Configuration.UserEndpoint+config.Configuration.BaseURL+"/users/"+idStr
-	user := make(chan *http.Response)
-	go SendGetAsync(userUrl, user)
-	userResponse := <- user
-	defer userResponse.Body.Close()
-	bytes, _ := ioutil.ReadAll(userResponse.Body)
-	jsonStr := string(bytes)
-	err = json.Unmarshal([]byte(jsonStr), &composition.User)
-
+	user, err := service.GetUserById(idStr)
 	if err != nil {
-		log.Errorf("[router.GetComposedInfoById] failed to parse user with id =%v, err=%v\n", idStr, err)
-		c.JSON(http.StatusBadRequest, "invalid user")
-		return
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, err.Error())
+		} else {
+			c.Error(err)
+		}
 	}
+	composition.User = user
+
+
 
 	// get address info
-	addressUrl := config.Configuration.AddressEndpoint+config.Configuration.BaseURL+"/addresses"+idStr+"/address"
-	address := make(chan *http.Response)
-	go SendGetAsync(addressUrl, address)
-	addressResponse := <- address
-	defer addressResponse.Body.Close()
-	bytes, _ = ioutil.ReadAll(addressResponse.Body)
-	jsonStr = string(bytes)
-	err = json.Unmarshal([]byte(jsonStr), &composition.Address)
+	address, err := service.GetAddressByUserId(idStr)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, err.Error())
+		} else {
+			c.Error(err)
+		}
+	}
+	composition.Address = address
 
-	// Temporarily comment this part. Because even when address is null, function should return a composition.
-
-	//if err != nil {
-	//	log.Errorf("[router.GetComposedInfoById] failed to parse address with its id =%v, err=%v\n", idStr, err)
-	//	c.JSON(http.StatusBadRequest, "invalid address")
-	//	return
-	//}
 
 	c.JSON(http.StatusOK, composition)
 }
 
-func AsyncPostUserAddressInfo(c *gin.Context) {
+func SyncPostUserAddressInfo(c *gin.Context) {
 	composition :=model.Composition{}
 	if err := c.ShouldBind(&composition); err != nil {
 		c.JSON(http.StatusBadRequest, err)
 	}
+	userIdStr, err:= service.CreateUser(composition.User)
 
-	body, _ := json.Marshal(composition.User)
-	userChan := make(chan *http.Response)
-	// UserService
-	userUrl := config.Configuration.UserEndpoint+config.Configuration.BaseURL+"/users"
-	go SendPostAsync(userUrl, body, userChan)
-	userResponse := <-userChan
-	defer userResponse.Body.Close()
-	bytes, err := ioutil.ReadAll(userResponse.Body)
-	idStr := string(bytes)
-	userId, err := strconv.Atoi(idStr)
-
+	userId, err := strconv.Atoi(userIdStr)
 	if err != nil {
-		c.Error(err)
-	} else {
-		composition.Address.UserId = uint(userId)
-		body, _ = json.Marshal(composition.Address)
-		addressChan := make(chan *http.Response)
-		// AddressService
-		addressUrl := config.Configuration.AddressEndpoint+config.Configuration.BaseURL+"/addresses"
-		go SendPostAsync(addressUrl, body, addressChan)
-		addressResponse := <-addressChan
-		defer addressResponse.Body.Close()
-		bytes, _ := ioutil.ReadAll(addressResponse.Body)
-		addressId := string(bytes)
-		fmt.Println(addressId)
-
-		c.JSON(http.StatusCreated, gin.H{"user": idStr, "address": addressId})
+		log.Errorf("[router.SyncPostUserAddressInfo] failed to parse user id %v, err=%v\n", userIdStr, err)
+		c.JSON(http.StatusBadRequest, "invalid user id")
+		return
 	}
-}
 
-func SendPostAsync(url string, body []byte, rc chan *http.Response) {
-	response, err := http.Post(url, "application/json", bytes.NewReader(body))
+	composition.Address.UserId = uint(userId)
+	addressIdStr, err:= service.CreateAddress(composition.Address)
+
+	addressId, err := strconv.Atoi(addressIdStr)
 	if err != nil {
-		panic(err)
+		log.Errorf("[router.SyncPostUserAddressInfo] failed to parse address id %v, err=%v\n", addressIdStr, err)
+		c.JSON(http.StatusBadRequest, "invalid user id")
+		return
 	}
-	rc <- response
-}
 
-func SendGetAsync(url string, rc chan *http.Response) {
-	response, err := http.Get(url)
-	if err != nil {
-		panic(err)
-	}
-	rc <- response
+	c.JSON(http.StatusCreated, gin.H{"user": userId, "address": addressId})
 }
