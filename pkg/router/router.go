@@ -66,8 +66,6 @@ func SyncGetUserAddressById(c *gin.Context) {
 	}
 	composition.User = user
 
-
-
 	// get address info
 	address, err := service.GetAddressByUserId(idStr)
 	if err != nil {
@@ -78,8 +76,6 @@ func SyncGetUserAddressById(c *gin.Context) {
 		}
 	}
 	composition.Address = address
-
-
 	c.JSON(http.StatusOK, composition)
 }
 
